@@ -1,9 +1,11 @@
 import os
-import json
 import cv2
 import numpy as np
+
 import torch
 from torch.utils.data import Dataset
+from torchvision import transforms
+
 
 class ANPRDataset(Dataset):
     """
@@ -15,7 +17,7 @@ class ANPRDataset(Dataset):
         target_size (tuple): Target size for resizing images.
     """
 
-    def __init__(self, folder_path: str, target_size: tuple):
+    def __init__(self, rows, folder_path: str, target_size: tuple):
         """
         Initializes the dataset by loading images and bounding boxes.
 
@@ -24,8 +26,10 @@ class ANPRDataset(Dataset):
             target_size (tuple): Target size for resizing images.
         """
 
-        self.images, self.bboxes = self.load_data(folder_path)
+        super().__init__()
         self.target_size = target_size
+        self.images, self.bboxes = self.load_data(rows, folder_path)
+        return
 
     def __len__(self) -> int:
         """
@@ -55,32 +59,46 @@ class ANPRDataset(Dataset):
         bbox = self.bboxes[idx]
         return img, torch.tensor(bbox, dtype=torch.float32)
 
-    def load_data(self, folder_path: str) -> tuple:
+    def get_transforms(target_size):
+        """
+        Defines data transformations for preprocessing and augmentation.
+        """
+
+        return transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(10),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+            transforms.RandomResizedCrop(target_size, scale=(0.8, 1.0))
+        ])
+
+    def load_data(self, rows, folder_path: str) -> tuple:
         """
         Loads images and bounding boxes from the specified folder.
 
         Args:
+            rows: 
             folder_path (str): Path to the folder containing images and annotations JSON file.
 
         Returns:
             tuple: Arrays of images and bounding boxes.
         """
-        
-        with open(folder_path + ".json") as f:
-            data = json.load(f)
-
         images = []
         bboxes = []
 
-        for annotation in data['annotations']:
-            img_path = os.path.join(folder_path, annotation['file_name'])
+        tr = ANPRDataset.get_transforms(self.target_size)
+
+        for row in rows:
+            img_path = os.path.join(folder_path, row[5])
             img = cv2.imread(img_path)
             if img is not None:
+                # img = tr(img)
                 images.append(img)
-                bbox = annotation['bbox']
-                if len(bbox) == 4:
-                    bboxes.append(bbox)
+                bbox = [row[1], row[2], row[3], row[4]]
+                bboxes.append(bbox)
 
         images = np.array(images, dtype=object)
         bboxes = np.array(bboxes, dtype=float)
         return images, bboxes
+    

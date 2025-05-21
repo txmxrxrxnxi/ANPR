@@ -1,3 +1,1 @@
-License Number Plate Recognition System
-
-s
+Automatic Number Plate Recognition system

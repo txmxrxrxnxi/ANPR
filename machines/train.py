@@ -35,12 +35,44 @@ def calculate_accuracy(outputs, targets, threshold=0.5):
     accuracy = correct_predictions / len(target_boxes)
     return accuracy
 
+def is_contained(pred_box, target_box, tol: float = 0.0) -> bool:
+    """
+    Returns True if target_box is fully inside pred_box, 
+    within an optional tolerance in pixels.
+    Boxes are in [x1, y1, x2, y2] format.
+    """
+    px1, py1, px2, py2 = pred_box
+    tx1, ty1, tx2, ty2 = target_box
+
+    return (
+        px1 - tol <= tx1 and
+        py1 - tol <= ty1 and
+        px2 + tol >= tx2 and
+        py2 + tol >= ty2
+    )
+
+def calculate_containment_accuracy(outputs, targets, tol: float = 0.0):
+    """
+    outputs: tensor of shape (batch, 4)
+    targets: tensor of shape (batch, 4)
+    tol: allowed slack (in pixels) on each side.
+    """
+    preds = outputs.detach().cpu().numpy()
+    targs = targets.detach().cpu().numpy()
+    count_inside = 0
+
+    for p, t in zip(preds, targs):
+        if is_contained(p, t, tol):
+            count_inside += 1
+
+    return count_inside / len(targs)
+
 HISTORY_FILE = "history/training_history.csv"
 
-def save_history(epoch, train_loss, valid_loss, train_acc, valid_acc):
+def save_history(train_loss, valid_loss, train_acc, valid_acc):
     """Appends training history to a CSV file."""
-    data = pd.DataFrame([[epoch, train_loss, valid_loss, train_acc, valid_acc]],
-                        columns=["Epoch", "Train Loss", "Valid Loss", "Train Accuracy", "Valid Accuracy"])
+    data = pd.DataFrame([[train_loss, valid_loss, train_acc, valid_acc]],
+                        columns=["Train Loss", "Valid Loss", "Train Accuracy", "Valid Accuracy"])
     
     try:
         existing_data = pd.read_csv(HISTORY_FILE)
@@ -55,7 +87,7 @@ def load_history():
     try:
         return pd.read_csv(HISTORY_FILE)
     except FileNotFoundError:
-        return pd.DataFrame(columns=["Epoch", "Train Loss", "Valid Loss", "Train Accuracy", "Valid Accuracy"])
+        return pd.DataFrame(columns=["Train Loss", "Valid Loss", "Train Accuracy", "Valid Accuracy"])
 
 def train_model(model: nn.Module, train_loader: DataLoader, valid_loader: DataLoader, 
                 criterion: nn.Module, device: torch.device, 
@@ -90,7 +122,7 @@ def train_model(model: nn.Module, train_loader: DataLoader, valid_loader: DataLo
             optimizer.step()
             running_loss += loss.item()
 
-            correct_train += calculate_accuracy(outputs, bboxes)
+            correct_train += calculate_containment_accuracy(outputs, bboxes)
             total_train += 1
 
         model.eval()
@@ -104,7 +136,7 @@ def train_model(model: nn.Module, train_loader: DataLoader, valid_loader: DataLo
                 loss = criterion(outputs, bboxes)
                 valid_loss += loss.item()
 
-                correct_valid += calculate_accuracy(outputs, bboxes)
+                correct_valid += calculate_containment_accuracy(outputs, bboxes)
                 total_valid += 1
 
         train_loss = running_loss / len(train_loader)
@@ -114,7 +146,7 @@ def train_model(model: nn.Module, train_loader: DataLoader, valid_loader: DataLo
         train_acc = correct_train / total_train
         valid_acc = correct_valid / total_valid
 
-        save_history(epoch, train_loss, valid_loss, train_acc, valid_acc)
+        save_history(train_loss, valid_loss, train_acc, valid_acc)
         
         print(f"Epoch {epoch + 1}/{epochs}, Train Loss: {train_loss}, Valid Loss: {valid_loss}, Train Accuracy: {train_acc}, Valid Accuracy: {valid_acc}")
 
@@ -123,12 +155,14 @@ def train_model(model: nn.Module, train_loader: DataLoader, valid_loader: DataLo
 
     if show_plots:
         history = load_history()
+        num_epochs = len(history["Train Accuracy"])
+        epochs_range = list(range(1, num_epochs + 1))
 
         plt.figure(figsize=(12, 6))
 
         plt.subplot(1, 2, 1)
-        plt.plot(history["Epoch"], history["Train Loss"], label='Train Loss')
-        plt.plot(history["Epoch"], history["Valid Loss"], label='Valid Loss')
+        plt.plot(epochs_range, history["Train Loss"], label='Train Loss')
+        plt.plot(epochs_range, history["Valid Loss"], label='Valid Loss')
         plt.xlabel('Epochs')
         plt.ylabel('Loss')
         plt.title('Loss History')
@@ -136,8 +170,8 @@ def train_model(model: nn.Module, train_loader: DataLoader, valid_loader: DataLo
         plt.savefig('history/loss_history.png')
 
         plt.subplot(1, 2, 2)
-        plt.plot(history["Epoch"], history["Train Accuracy"], label='Train Accuracy')
-        plt.plot(history["Epoch"], history["Valid Accuracy"], label='Valid Accuracy')
+        plt.plot(epochs_range, history["Train Accuracy"], label='Train Accuracy')
+        plt.plot(epochs_range, history["Valid Accuracy"], label='Valid Accuracy')
         plt.xlabel('Epochs')
         plt.ylabel('Accuracy')
         plt.title('Accuracy History')

@@ -14,10 +14,11 @@ from train import train_model
 from evaluate import evaluate_model, plot_predictions
 
 
-load_dotenv()
+load_dotenv(encoding="utf-8")
 TARGET_SIZE = (224, 224)
 BATCH_SIZE = 32
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(device)
 epochs = 10
 
 def arg_parse():

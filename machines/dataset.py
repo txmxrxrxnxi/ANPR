@@ -6,6 +6,8 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 class ANPRDataset(Dataset):
     """

@@ -1,8 +1,6 @@
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torchvision.ops import generalized_box_iou
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch import nn
 
 import pandas as pd
@@ -36,15 +34,6 @@ def calculate_accuracy(outputs, targets, threshold=0.5):
 
     accuracy = correct_predictions / len(target_boxes)
     return accuracy
-
-def giou_loss(preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-    """
-    Computes GIoU loss = 1 - GIoU(preds, targets).
-    preds and targets are (N, 4) in [x1, y1, x2, y2] format.
-    """
-    # generalized_box_iou returns a Tensor of shape (N,)
-    giou = generalized_box_iou(preds, targets)
-    return (1 - giou).mean()
 
 def is_contained(pred_box, target_box, tol: float = 0.0) -> bool:
     """
@@ -117,59 +106,45 @@ def train_model(model: nn.Module, train_loader: DataLoader, valid_loader: DataLo
     """
     
     optimizer = optim.Adam(model.parameters(), lr=0.001)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=2, threshold=1e-3, threshold_mode='abs')
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, threshold=1e-3, threshold_mode='abs')
 
     for epoch in range(epochs):
         model.train()
         running_loss = 0.0
-        correct_train = 0.0
+        correct_train = 0
         total_train = 0
-
         for inputs, bboxes in train_loader:
-            inputs = inputs.to(device)
-            bboxes = bboxes.to(device)
-
+            inputs, bboxes = inputs.to(device), bboxes.to(device)
             optimizer.zero_grad()
             outputs = model(inputs)
-
-            loss = giou_loss(outputs, bboxes)
+            loss = criterion(outputs, bboxes)
             loss.backward()
             optimizer.step()
-
             running_loss += loss.item()
 
-            with torch.no_grad():
-                giou_vals = generalized_box_iou(outputs, bboxes).diag()
-                batch_iou_acc = (giou_vals >= 0.5).float().mean().item()
-            correct_train += batch_iou_acc
+            correct_train += calculate_containment_accuracy(outputs, bboxes)
             total_train += 1
 
-        train_loss = running_loss / len(train_loader)
-        train_acc  = correct_train / total_train
-
         model.eval()
-        valid_loss_sum = 0.0
-        correct_valid = 0.0
+        valid_loss = 0.0
+        correct_valid = 0
         total_valid = 0
-
         with torch.no_grad():
             for inputs, bboxes in valid_loader:
-                inputs = inputs.to(device)
-                bboxes = bboxes.to(device)
+                inputs, bboxes = inputs.to(device), bboxes.to(device)
                 outputs = model(inputs)
+                loss = criterion(outputs, bboxes)
+                valid_loss += loss.item()
 
-                loss = giou_loss(outputs, bboxes)
-                valid_loss_sum += loss.item()
-
-                giou_vals = generalized_box_iou(outputs, bboxes).diag()
-                batch_iou_acc = (giou_vals >= 0.5).float().mean().item()
-                correct_valid += batch_iou_acc
+                correct_valid += calculate_containment_accuracy(outputs, bboxes)
                 total_valid += 1
 
-        valid_loss = valid_loss_sum / len(valid_loader)
-        valid_acc  = correct_valid / total_valid
-
+        train_loss = running_loss / len(train_loader)
+        valid_loss = valid_loss / len(valid_loader)
         scheduler.step(valid_loss)
+        
+        train_acc = correct_train / total_train
+        valid_acc = correct_valid / total_valid
 
         save_history(train_loss, valid_loss, train_acc, valid_acc)
         

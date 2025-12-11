@@ -66,14 +66,15 @@ class ANPRDataset(Dataset):
         Defines data transformations for preprocessing and augmentation.
         """
 
-        return transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation(10),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-            transforms.RandomResizedCrop(target_size, scale=(0.8, 1.0))
-        ])
+        return A.Compose([
+                A.Affine(rotate=(-45, 45), translate_percent=0.0625, scale=(0.9, 1.1), p=0.7),
+                A.RandomResizedCrop(size=(target_size[1], target_size[0]), scale=(0.8, 1.0), p=0.5),
+                A.HorizontalFlip(p=0.5),
+                A.RandomBrightnessContrast(p=0.3),
+                A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.0, p=0.3),
+                A.Normalize(mean=(0.485,0.456,0.406), std=(0.229,0.224,0.225)),
+                ToTensorV2(),
+            ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['labels']))
 
     def load_data(self, rows, folder_path: str) -> tuple:
         """

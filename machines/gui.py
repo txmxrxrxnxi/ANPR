@@ -31,28 +31,28 @@ class ANPRGUI:
         self.right_panel = tk.Frame(self.main_frame, bg="#f0f4f8", bd=2, relief=tk.RIDGE)
         self.right_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-        self.title_label = tk.Label(self.left_panel, text="ANPR System", font=("Segoe UI", 18, "bold"), bg="#e3eaf2")
+        self.title_label = tk.Label(self.left_panel, text="Система ANPR", font=("Segoe UI", 18, "bold"), bg="#e3eaf2")
         self.title_label.pack(pady=(10, 20))
 
         self.load_model_btn = tk.Button(
-            self.left_panel, text="Load Model (Ctrl+L)", command=self.load_model,
+            self.left_panel, text="Завантажити модель (Ctrl+L)", command=self.load_model,
             font=("Segoe UI", 12), bg="#c7d6ee", fg="#222", relief=tk.GROOVE, height=2
         )
         self.load_model_btn.pack(pady=5, anchor="n", fill=tk.X)
 
         self.choose_img_btn = tk.Button(
-            self.left_panel, text="Choose Image (Ctrl+O)", command=self.choose_image, state=tk.DISABLED,
+            self.left_panel, text="Вибрати зображення (Ctrl+O)", command=self.choose_image, state=tk.DISABLED,
             font=("Segoe UI", 12), bg="#c7d6ee", fg="#222", relief=tk.GROOVE, height=2
         )
         self.choose_img_btn.pack(pady=5, anchor="n", fill=tk.X)
 
         self.detect_btn = tk.Button(
-            self.left_panel, text="Detect Number Plate (Ctrl+D)", command=self.detect_plate, state=tk.DISABLED,
+            self.left_panel, text="Розпізнати номерний знак (Ctrl+D)", command=self.detect_plate, state=tk.DISABLED,
             font=("Segoe UI", 12), bg="#c7d6ee", fg="#222", relief=tk.GROOVE, height=2
         )
         self.detect_btn.pack(pady=5, anchor="n", fill=tk.X)
 
-        self.ocr_label = tk.Label(self.left_panel, text="Detected Plate Number:", font=("Segoe UI", 14), bg="#e3eaf2")
+        self.ocr_label = tk.Label(self.left_panel, text="Розпізнаний номерний знак:", font=("Segoe UI", 14), bg="#e3eaf2")
         self.ocr_label.pack(pady=(30, 5), anchor="nw")
         self.ocr_text = tk.Text(self.left_panel, height=2, width=20, font=("Consolas", 18, "bold"), bg="#f8fafc", fg="#d7263d", bd=2, relief=tk.SUNKEN)
         self.ocr_text.pack(pady=5, anchor="nw")
@@ -126,17 +126,16 @@ class ANPRGUI:
         
         with torch.no_grad():
             bbox = self.model(img_tensor).cpu().numpy().squeeze()
-        print("Predicted bounding box:", bbox)
         self.show_image(self.img_path, bbox=bbox)
 
         pil_img = Image.open(self.img_path).convert("RGB")
         x, y, w, h = bbox
-        # Ensure coordinates are correct for cropping
+        
         x1 = int(x)
         y1 = int(y)
         x2 = int(x + w)
         y2 = int(y + h)
-        # Clamp coordinates to image bounds
+        
         img_w, img_h = pil_img.size
         x1 = max(0, min(x1, img_w - 1))
         y1 = max(0, min(y1, img_h - 1))

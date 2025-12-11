@@ -22,7 +22,7 @@ def calculate_iou(boxA, boxB):
     
     return iou
 
-def calculate_accuracy(outputs, targets, threshold=0.5):
+def calculate_accuracy(outputs, targets, threshold=0.4):
     predicted_boxes = outputs.cpu().detach().numpy()
     target_boxes = targets.cpu().detach().numpy()
 
@@ -122,7 +122,7 @@ def train_model(model: nn.Module, train_loader: DataLoader, valid_loader: DataLo
             optimizer.step()
             running_loss += loss.item()
 
-            correct_train += calculate_containment_accuracy(outputs, bboxes)
+            correct_train += calculate_accuracy(outputs, bboxes)
             total_train += 1
 
         model.eval()
@@ -136,15 +136,15 @@ def train_model(model: nn.Module, train_loader: DataLoader, valid_loader: DataLo
                 loss = criterion(outputs, bboxes)
                 valid_loss += loss.item()
 
-                correct_valid += calculate_containment_accuracy(outputs, bboxes)
+                correct_valid += calculate_accuracy(outputs, bboxes)
                 total_valid += 1
 
         train_loss = running_loss / len(train_loader)
         valid_loss = valid_loss / len(valid_loader)
         scheduler.step(valid_loss)
         
-        train_acc = correct_train / total_train
-        valid_acc = correct_valid / total_valid
+        train_acc = correct_train / total_train * 100
+        valid_acc = correct_valid / total_valid * 100
 
         save_history(train_loss, valid_loss, train_acc, valid_acc)
         
